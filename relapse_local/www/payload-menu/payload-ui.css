@@ -1,0 +1,20 @@
+#relapse-payload-menu { position:absolute; top:0; left:0; box-sizing:border-box; width:100%; min-height:100vh; padding:6vh 7vw; background:#0c0c0f; color:#edf1f7; font:22px/1.5 sans-serif; visibility:hidden; opacity:0; pointer-events:none; }
+#relapse-payload-menu.ready { visibility:visible; opacity:1; pointer-events:auto; }
+#relapse-payload-menu h1 { font-size:46px; margin:10px 0; }
+#relapse-payload-menu .eyebrow { color:#94c8ff; font-size:17px; letter-spacing:.1em; }
+#relapse-payload-menu button { font:inherit; cursor:pointer; border:1px solid #4c5360; border-radius:12px; padding:22px; background:#202530; color:#fff; text-align:left; }
+#relapse-payload-menu button:focus { outline:4px solid #b9d8ff; outline-offset:4px; background:#30425d; }
+#relapse-payload-menu button:disabled { opacity:.45; cursor:default; }
+#relapse-payload-menu small { display:block; color:#b9c5d7; font-size:17px; margin-top:8px; overflow-wrap:anywhere; }
+#relapse-payload-menu [hidden] { display:none!important; }
+.payload-actions { display:grid; grid-template-columns:1fr 1fr; gap:24px; margin:30px 0; }
+.payload-actions button { min-height:145px; }
+#payload-status { color:#c0d4ef; min-height:2em; }
+.payload-toolbar { display:flex; flex-wrap:wrap; gap:16px; margin:24px 0; }
+#payload-list { display:grid; gap:16px; }
+.payload-row { position:relative; padding-right:150px!important; }
+#relapse-payload-menu .restore-badge { display:block; margin-top:8px; color:#79dda7; font:600 20px/1.4 sans-serif; }
+#relapse-payload-menu .payload-row:disabled { opacity:1; color:#aeb9c9; border-color:#38404d; background:#171c24; }
+.transfer-state { position:absolute; right:22px; top:24px; color:#94c8ff; font-size:18px; }
+#primary-ready { background:#26483d!important; }
+@media(max-width:640px) { .payload-actions { grid-template-columns:1fr; } #relapse-payload-menu { padding:24px; } }

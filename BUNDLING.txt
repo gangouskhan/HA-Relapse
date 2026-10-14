@@ -1,0 +1,19 @@
+HA Relapse 0.4.4 is upload-first.
+
+Build: python3 build_bundle.py
+Audit: python3 audit_bundle.py
+
+The build writes dist/relapse-local-ha-0.4.4.zip and dist/SHA256SUMS.txt.
+The ZIP includes README.md and the relapse_local app folder.
+Follow README.md to install it.
+Upload payloads in Home Assistant -> HA Relapse -> Open web UI.
+Do not embed etaHEN, kstuff, ShadowMount or other user payloads in the image.
+Only the exploit's required ELF loader and kernel blob are packaged.
+
+Keep README.md, BUNDLING.txt, build_bundle.py, audit_bundle.py, tests/, docs/,
+relapse_local/ and .gitignore in source Git. Preserve upstream notices.
+dist/, local backups, downloaded payloads and generated verification files
+are Git-ignored. Attach the ZIP/checksum as release downloads if publishing.
+
+Screenshots are in docs/screenshots/ and kept outside the install ZIP and
+container image. Files named ps5-*-preview.jpg are local browser previews.

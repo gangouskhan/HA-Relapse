@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>HA Relapse · Payload library</title>
+  <link rel="stylesheet" href="style.css">
+  <script src="app.js" defer></script>
+</head>
+<body>
+<main>
+  <header class="masthead">
+    <div class="brand"><span class="brand-mark" aria-hidden="true">R</span><span>HA Relapse</span></div>
+    <div class="host-tag"><span class="status-dot"></span> Local host <span id="version">0.4.4</span></div>
+  </header>
+  <div id="notice" class="notice" role="status" aria-live="polite" hidden></div>
+  <div class="tabs" role="tablist" aria-label="Payload library">
+    <button id="tab-primary" type="button" role="tab" aria-controls="primary-panel" aria-selected="true">Primary payload <span>01</span></button>
+    <button id="tab-additional" type="button" role="tab" aria-controls="additional-panel" aria-selected="false" tabindex="-1">Additional payloads <span id="additional-count">0</span></button>
+  </div>
+  <section id="primary-panel" role="tabpanel" aria-labelledby="tab-primary">
+    <div class="section-heading"><h2>Primary payload</h2></div>
+    <div class="content-grid">
+      <form id="primary-upload" class="upload-card">
+        <h3 id="primary-upload-title">Upload</h3>
+        <label class="file-label">ELF file<input id="primary-file" type="file" required></label>
+        <label>Display name <span class="muted">optional</span><input id="primary-label" type="text" maxlength="120" placeholder="Uses the original filename"></label>
+        <button type="submit" class="accent">Upload <span aria-hidden="true">↑</span></button>
+      </form>
+      <div id="primary-current" class="current-area"></div>
+    </div>
+  </section>
+  <section id="additional-panel" role="tabpanel" aria-labelledby="tab-additional" hidden>
+    <div class="section-heading"><h2>Additional payloads</h2><button id="refresh" type="button" class="quiet">Refresh</button></div>
+    <form id="additional-upload" class="additional-upload">
+      <label>ELF files<input id="additional-files" type="file" multiple required></label>
+      <button type="submit" class="accent">Upload <span aria-hidden="true">↑</span></button>
+    </form>
+    <p class="restore-note">List order = restore order.</p>
+    <div id="additional-list"></div>
+  </section>
+  <section id="upload-progress" class="progress-card" aria-label="Upload progress" hidden><span id="progress-label"></span><progress id="progress" max="100" value="0"></progress></section>
+  <footer><span>64 MiB per file</span><span>HA Relapse</span></footer>
+</main>
+</body>
+</html>
