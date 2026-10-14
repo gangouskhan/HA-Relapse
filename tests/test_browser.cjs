@@ -55,6 +55,20 @@ const output=path.resolve(__dirname,'../verification-ui',version);fs.mkdirSync(o
         const library=await (await context.request.get(urls.public+'/api/catalog')).json();
         const expected=['primary',...library.additional.filter(e=>e.restore).map(e=>e.id)];
         const consolePage=await context.newPage();
+        // The hidden additional panel must already have text renderers before
+        // readiness. A display:none ancestor makes every offsetHeight zero.
+        await consolePage.goto(urls.public+'/ui-test?prepared=1');
+        await consolePage.waitForFunction(()=>window.testReady===true);
+        const staged=await consolePage.locator('#payload-additional').evaluate(panel=>({
+            hidden:panel.hidden,height:panel.offsetHeight,
+            rows:Array.from(panel.querySelectorAll('.payload-row')).map(row=>({
+                height:row.offsetHeight,children:Array.from(row.children).map(child=>child.offsetHeight)
+            }))
+        }));
+        assert.equal(staged.hidden,true);assert.ok(staged.height>0);
+        assert.equal(staged.rows.length,3);
+        for(const row of staged.rows){assert.ok(row.height>0);for(const height of row.children)assert.ok(height>0);}
+        assert.equal(await consolePage.getByRole('button',{name:'Restore payloads',exact:true}).isVisible(),false);
         const consoleRequests=[];
         consolePage.on('request',request=>consoleRequests.push(request.url()));
         await consolePage.goto(urls.guide);
@@ -68,12 +82,12 @@ const output=path.resolve(__dirname,'../verification-ui',version);fs.mkdirSync(o
         await consolePage.waitForFunction(()=>sentIDs.length===1);
         await consolePage.locator('#additional-button').click();
         assert.equal(await consolePage.locator('#restore-button').isDisabled(),true);
-        const selectedRow=consolePage.locator('#payload-list button[data-payload]').filter({hasText:'FTP tools.elf'});
-        const manualRow=consolePage.locator('#payload-list button[data-payload]').filter({hasText:'One time tool.elf'});
+        const selectedRow=consolePage.locator('#payload-list .payload-row').filter({hasText:'FTP tools.elf'});
+        const manualRow=consolePage.locator('#payload-list .payload-row').filter({hasText:'One time tool.elf'});
         assert.equal(await consolePage.locator('.restore-badge:visible').count(),2);
         assert.equal(await selectedRow.locator('.restore-badge').textContent(),'Restore');
         assert.equal(await manualRow.locator('.restore-badge').isVisible(),false);
-        assert.equal(await selectedRow.isDisabled(),true);
+        assert.equal(await selectedRow.locator('button').isDisabled(),true);
         await consolePage.screenshot({path:path.join(output,'04a-ps5-restore-selection.png'),fullPage:true});
         // Saved HA selections are reflected only on refresh, without sending a file.
         const restoreCheckbox=cards.filter({has:page.getByRole('heading',{name:'FTP tools.elf',exact:true})}).getByLabel('Include in restore');

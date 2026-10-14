@@ -1,6 +1,6 @@
 FROM ghcr.io/home-assistant/base:3.23
 
-ARG BUILD_VERSION=0.4.4
+ARG BUILD_VERSION=0.4.7
 ARG BUILD_ARCH
 LABEL io.hass.name="HA Relapse" \
       io.hass.description="Local PS5 Relapse host and DNS" \

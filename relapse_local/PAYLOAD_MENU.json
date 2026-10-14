@@ -99,11 +99,11 @@
     "offsets/9.60.js": "6a63a3fb7bcad042e5b32a7a1ad828dbcca37e80cc7193a3bc60c32b52eac559",
     "offsets/TEMPLATE.js": "dc492af498002c927ee298dec7783495dbd4eddb7bc797795bd39c9ef57a35fc",
     "payload-sender.js": "06aab7fb3fc8ad69280fe187cd204dc489bebd40ef4db823f2ac7e0b5ca04d3f",
-    "payload-ui.css": "84fd2f4bc318d0cacadfd0cc4170dbad0b885f4de3c647ae5f3c36fc068b74be",
-    "payload-ui.js": "64c3dcc7a053b9eedfa9fa162a24d87fb09e2c5861a92869d312a50a84f9c34e",
+    "payload-ui.css": "0a2464622d07310e171a770ca1cc70ffd308fcd1fe07d6eeb4575e2134418421",
+    "payload-ui.js": "6726e7f8b16ea7faf2be48eb7c8e60029007d5238a9e8d4fed36abfd16093bd7",
     "payloads/elfldr-ps5-1360.elf": "de5dd480d12637527ba2d75e35de851adbb59c455293fa32588c492ef6b44b81",
     "payloads/kexp_2026_05_25.bin": "7cfb3a8cb86db67893c360ae3531f460f800e9f24039797038e6e81fc50f18a9",
-    "relapse.html": "2fe8c915c1f5453088cb94771fd65f82ce2b51557110dda66b99d074af85bba4",
+    "relapse.html": "3cbd7ac19c26773a60edf1e8b2121646908e39b8c3ab7bd78c1c7ac62bd53119",
     "rop.js": "489e71f9b9c2100e4061371abb89ff46ad251006418cb57bb34d92416368ec04",
     "rop_slave.js": "18f8bd08d5fcbea849d2b5253aadfd1564c94967e98ebd6ad70c1fd7db3b1924",
     "syscalls.js": "99767fd55c46d529a6f347778185092a38461b91e60414c2f22379b520479c0e"
@@ -111,8 +111,8 @@
   "local_changes": {
     "main.js": "Track fresh versus existing loader session; connect versioned payload sender to existing native transport.",
     "payload-sender.js": "Send uploaded files in bounded chunks with durable attempt guard.",
-    "relapse.html": "Prebuild primary/additional UI before exploit; show it when loader is ready.",
-    "payload-ui.js": "Dynamic library, primary startup confirmation, ordered restore and indicators reflecting the saved HA restore selections.",
-    "payload-ui.css": "Local PS5 interface styling with green Restore text readable on disabled payload rows."
+    "relapse.html": "Prebuild primary/additional UI before exploit; show it when loader is ready; log local viewport and row geometry without filenames or contents.",
+    "payload-ui.js": "Dynamic library, primary confirmation and ordered restore; lay out staged rows before Relapse and preserve unchanged rows on refresh.",
+    "payload-ui.css": "Normal-flow payload cards and a clipped, visibility-hidden staging panel that retains its render tree before Relapse."
   }
 }

@@ -8,7 +8,7 @@ import re
 import sys
 import zipfile
 
-archive = Path(sys.argv[1]) if len(sys.argv) > 1 else Path(__file__).parent / 'dist' / 'relapse-local-ha-0.4.4.zip'
+archive = Path(sys.argv[1]) if len(sys.argv) > 1 else Path(__file__).parent / 'dist' / 'relapse-local-ha-0.4.7.zip'
 with zipfile.ZipFile(archive) as bundle:
     names = set(bundle.namelist())
     assert bundle.testzip() is None

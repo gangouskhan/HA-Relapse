@@ -2,8 +2,11 @@
 window.createPayloadUI = function (env) {
     const doc = env.document;
     const get = id => doc.getElementById(id);
-    let catalog, session, busy = false, cancelled = false, primaryReady = false;
+    let catalog, session, busy = false, cancelled = false, primaryReady = false, rows = [];
     const title = entry => entry.active.label || entry.active.filename;
+    const setText = (element, text) => {
+        if (element.textContent !== text) element.textContent = text;
+    };
     const status = message => { get("payload-status").textContent = message; };
     async function api(path, data) {
         const response = await env.fetch("/api/" + path, data === undefined ? {cache: "no-store"} : {
@@ -21,7 +24,24 @@ window.createPayloadUI = function (env) {
     function showPanel(additional) {
         get("payload-home").hidden = additional;
         get("payload-additional").hidden = !additional;
+        layoutRows();
         (additional ? get("payload-back") : get("primary-button")).focus();
+        reportDisplay();
+    }
+    function layoutRows() {
+        // Unlike display:none, the staged panel has a render tree even while
+        // hidden. Lay out every text element before the exploit, as upstream does.
+        void get("payload-additional").offsetHeight;
+        for (let i = 0; i < rows.length; i++) {
+            const element = rows[i].element;
+            void element.offsetHeight;
+            for (let j = 0; j < element.children.length; j++) void element.children[j].offsetHeight;
+        }
+    }
+    function reportDisplay() {
+        if (get("payload-additional").hidden || !env.reportDisplay) return;
+        try { env.reportDisplay({expected: catalog.additional.length, built: rows.length}); }
+        catch (_) { /* Display diagnostics must never interrupt payload loading. */ }
     }
     function controls() {
         get("primary-button").disabled = busy || !session || !catalog.primary || !!attempted(catalog.primary);
@@ -30,38 +50,64 @@ window.createPayloadUI = function (env) {
         get("payload-refresh").disabled = busy;
         get("restore-button").disabled = busy || !primaryReady || !catalog.additional.some(e => e.restore && !attempted(e));
         get("cancel-restore").hidden = !busy;
-        for (const button of get("payload-list").querySelectorAll("button[data-payload]")) {
-            const entry = catalog.additional.find(e => e.id === button.dataset.payload);
-            button.disabled = busy || !primaryReady || !!attempted(entry);
+        for (let i = 0; i < rows.length; i++) {
+            const row = rows[i], entry = row.entry;
+            row.button.disabled = busy || !primaryReady || !!attempted(entry);
+            row.element.className = "payload-row" + (row.button.disabled ? " unavailable" : "");
             const record = session && session.attempts[entry.id];
-            button.querySelector(".transfer-state").textContent = record ? record.status : attempted(entry) ? "Already attempted" : "Load";
+            setText(row.state, record ? record.status : attempted(entry) ? "Already attempted" : "Load");
         }
     }
     function render() {
-        get("primary-name").textContent = "Primary payload";
-        get("primary-file").textContent = catalog.primary ? title(catalog.primary) : "Upload in Home Assistant";
+        setText(get("primary-name"), "Primary payload");
+        setText(get("primary-file"), catalog.primary ? title(catalog.primary) : "Upload in Home Assistant");
         const list = get("payload-list");
-        list.textContent = "";
-        for (const entry of catalog.additional) {
-            const button = doc.createElement("button");
-            button.type = "button";
-            button.className = "payload-row";
-            button.dataset.payload = entry.id;
-            const name = doc.createElement("strong"); name.textContent = title(entry);
-            const detail = doc.createElement("small");
-            detail.textContent = entry.active.label ? entry.active.filename : "";
-            detail.hidden = !detail.textContent;
-            const restore = doc.createElement("span");
-            restore.className = "restore-badge";
-            restore.textContent = "Restore";
-            restore.hidden = !entry.restore;
-            const state = doc.createElement("span"); state.className = "transfer-state";
-            button.append(name, detail, restore, state);
-            button.addEventListener("click", () => execute([entry], false));
-            list.appendChild(button);
+        const previous = rows;
+        rows = [];
+        for (let i = 0; i < catalog.additional.length; i++) {
+            const entry = catalog.additional[i];
+            const signature = JSON.stringify([entry.active.filename, entry.active.label, entry.restore]);
+            let row = previous.find(r => r.entry.id === entry.id && r.signature === signature);
+            if (row) {
+                // Refresh must not discard the text tree prepared before Relapse.
+                row.entry = entry;
+            } else {
+                const element = doc.createElement("div");
+                element.className = "payload-row";
+                const button = doc.createElement("button");
+                button.type = "button";
+                button.className = "payload-load";
+                button.dataset.payload = entry.id;
+                // Keep native buttons text-only; render metadata in normal elements.
+                button.textContent = title(entry);
+                element.appendChild(button);
+                if (entry.active.label) {
+                    const detail = doc.createElement("small");
+                    detail.textContent = entry.active.filename;
+                    element.appendChild(detail);
+                }
+                if (entry.restore) {
+                    const restore = doc.createElement("span");
+                    restore.className = "restore-badge";
+                    restore.textContent = "Restore";
+                    element.appendChild(restore);
+                }
+                const state = doc.createElement("span"); state.className = "transfer-state";
+                element.appendChild(state);
+                row = {entry: entry, signature: signature, element: element, button: button, state: state};
+                element.addEventListener("click", () => {
+                    if (!button.disabled) return execute([row.entry], false);
+                });
+            }
+            rows.push(row);
+            if (list.children[i] !== row.element) list.insertBefore(row.element, list.children[i] || null);
         }
+        while (list.children.length > rows.length) list.removeChild(list.lastChild);
         get("payload-empty").hidden = !!catalog.additional.length;
+        get("payload-count").hidden = !catalog.additional.length;
+        setText(get("payload-count"), catalog.additional.length + (catalog.additional.length === 1 ? " payload" : " payloads"));
         controls();
+        layoutRows();
     }
     async function execute(entries, restoring) {
         if (busy || !session) return;
@@ -94,6 +140,7 @@ window.createPayloadUI = function (env) {
         } finally {
             busy = false;
             controls();
+            reportDisplay();
         }
     }
     get("primary-button").addEventListener("click", () => execute(catalog.primary ? [catalog.primary] : [], false));
@@ -106,7 +153,7 @@ window.createPayloadUI = function (env) {
     get("cancel-restore").addEventListener("click", () => { cancelled = true; status("Stopping after the current transfer…"); });
     get("payload-refresh").addEventListener("click", async () => {
         if (busy) return;
-        try { catalog = await api("catalog"); render(); status("Payload list refreshed."); }
+        try { catalog = await api("catalog"); render(); status("Payload list refreshed."); reportDisplay(); }
         catch (error) { status(error.message); }
     });
     return {

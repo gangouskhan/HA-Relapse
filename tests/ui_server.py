@@ -84,8 +84,9 @@ class PublicTestHandler(Handler):
             # script. Only mock native socket writes; exercise the real HTTP APIs.
             html = (ADDON / "www/payload-menu/relapse.html").read_text()
             html = re.sub(r"<script\b[^>]*>[\s\S]*?</script>", "", html)
-            html = html.replace('href="payload-ui.css"', 'href="/payload-menu/payload-ui.css"')
+            html = html.replace('href="payload-ui.css', 'href="/payload-menu/payload-ui.css')
             fresh = "false" if "existing=1" in self.path else "true"
+            prepared = "true" if "prepared=1" in self.path else "false"
             harness = '''<script src="/payload-menu/payload-ui.js"></script>
 <script src="/payload-menu/payload-sender.js"></script>
 <script>
@@ -96,8 +97,8 @@ window.mockSend = createLocalPayloadSender({buffer: new Uint8Array(1024), fetch:
     claim: entry=>{window.sendingID=entry.id;return payloadUI.claim(entry);},
     result: async(entry,status)=>{if(status==='sent')sentIDs.push(entry.id);await payloadUI.result(entry,status);},
     connect: async()=>3, write: async(_s,_o,n)=>{if(window.failID===window.sendingID)throw new Error('Test transfer failure');return n;},close:async()=>{}});
-payloadUI.prepare().then(()=>payloadUI.ready(FRESH)).then(()=>{window.testReady=true;}).catch(e=>{window.testError=e.message;});
-</script>'''.replace("FRESH", fresh)
+payloadUI.prepare().then(()=>{if(!PREPARED)return payloadUI.ready(FRESH);}).then(()=>{window.testReady=true;}).catch(e=>{window.testError=e.message;});
+</script>'''.replace("FRESH", fresh).replace("PREPARED", prepared)
             body = html.replace("</body>", harness + "</body>").encode()
             self.send_response(200)
             self.send_header("Content-Type", "text/html")

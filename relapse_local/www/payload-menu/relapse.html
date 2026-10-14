@@ -5,7 +5,7 @@
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>HA Relapse</title>
-<link rel="stylesheet" href="payload-ui.css">
+<link rel="stylesheet" href="payload-ui.css?v=0.4.7">
 <style>
   html, body { margin: 0; padding: 0; background: #0c0c0f; }
 
@@ -48,6 +48,7 @@
     </div>
   </div>
   <button id="primary-ready" type="button" hidden>Primary payload started</button>
+  <div class="payload-stage">
   <div id="payload-additional" hidden>
     <div class="payload-toolbar">
       <button id="payload-back" type="button">Back</button>
@@ -55,14 +56,16 @@
       <button id="payload-refresh" type="button">Refresh list</button>
     </div>
     <p id="payload-empty">No additional payloads.</p>
+    <p id="payload-count" hidden></p>
     <div id="payload-list"></div>
+  </div>
   </div>
   <button id="cancel-restore" type="button" hidden>Stop after current payload</button>
 </section>
 
 
 <script src="rop.js"></script>
-<script src="payload-ui.js"></script>
+<script src="payload-ui.js?v=0.4.7"></script>
 <script src="firmware.js?v=4"></script>
 <script src="main.js?v=7"></script>
 
@@ -221,7 +224,33 @@ window.payloadUI = window.createPayloadUI({
     document: document,
     fetch: (url, options) => fetch(url, options),
     send: (entry) => window.__sendPayload(entry),
-    sleep: sleep
+    sleep: sleep,
+    reportDisplay: (counts) => requestAnimationFrame(() => {
+        try {
+            const list = document.getElementById("payload-list");
+            const bounds = element => {
+                const r = element.getBoundingClientRect();
+                return [Math.round(r.left), Math.round(r.top), Math.round(r.width), Math.round(r.height)];
+            };
+            // Separate compact beacons stay within the logger's URL length cap.
+            // Local HA only: geometry and text lengths, never names or contents.
+            __bcn("UI-VIEW " + JSON.stringify({v: "0.4.7", expected: counts.expected,
+                built: counts.built, dom: list.children.length,
+                viewport: [innerWidth, innerHeight, devicePixelRatio],
+                menu: bounds(document.getElementById("relapse-payload-menu")), list: bounds(list)}));
+            for (let i = 0; i < list.children.length && i < 6; i++) {
+                const row = list.children[i], children = [];
+                const style = getComputedStyle(row);
+                for (let j = 0; j < row.children.length; j++) {
+                    const child = row.children[j], childStyle = getComputedStyle(child);
+                    children.push([Math.round(child.offsetHeight), child.textContent.length,
+                        childStyle.visibility === "visible" ? 1 : 0, childStyle.opacity]);
+                }
+                __bcn("UI-ROW " + JSON.stringify({i: i, box: bounds(row),
+                    visible: style.visibility, opacity: style.opacity, children: children}));
+            }
+        } catch (_) { /* Diagnostics must not affect the loader. */ }
+    })
 });
 // Fetch and lay out the user library before running any exploit code.
 payloadUI.prepare().then(run).then(async () => {

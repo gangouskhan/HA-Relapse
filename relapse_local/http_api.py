@@ -9,7 +9,7 @@ from urllib.parse import parse_qs, unquote, urlsplit
 
 from payload_store import MAX_PAYLOAD, StoreError
 
-VERSION = "0.4.4"
+VERSION = "0.4.7"
 
 
 class ApiMixin:

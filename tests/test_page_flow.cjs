@@ -8,16 +8,21 @@ function setup(library={primary:item('primary'),additional:[item('a',true),item(
         constructor(){this.children=[];this.events={};this.style={};this.dataset={};this.hidden=false;this.disabled=false;this.classList={add:v=>{this.shown=v==='ready';}};}
         set textContent(value){this.text=value;this.children=[];}get textContent(){return this.text;}
         append(...nodes){this.children.push(...nodes);}appendChild(node){this.append(node);}focus(){}
+        insertBefore(node,before){const index=this.children.indexOf(node);if(index>=0)this.children.splice(index,1);if(before)this.children.splice(this.children.indexOf(before),0,node);else this.children.push(node);}
+        removeChild(node){this.children.splice(this.children.indexOf(node),1);}
+        get lastChild(){return this.children.at(-1);}
+        get offsetHeight(){this.layoutReads=(this.layoutReads||0)+1;return 112;}
         addEventListener(name,fn){this.events[name]=fn;}
         querySelectorAll(query){return this.children.filter(c=>query==='button[data-payload]'&&c.dataset.payload);}
         querySelector(query){return this.children.find(c=>c.className===query.slice(1));}
     }
-    const ids=['payload-status','payload-home','payload-additional','payload-back','primary-button','primary-name','primary-file','primary-ready','payload-refresh','restore-button','cancel-restore','payload-list','payload-empty','additional-button','relapse-payload-menu','console'];
+    const ids=['payload-status','payload-home','payload-additional','payload-back','primary-button','primary-name','primary-file','primary-ready','payload-refresh','restore-button','cancel-restore','payload-list','payload-empty','payload-count','additional-button','relapse-payload-menu','console'];
     const elements=Object.fromEntries(ids.map(id=>[id,new Element()]));
     const state=existing||{session:{token:'test',attempts:{}}};
     let failId, pendingSleep;
-    const sent=[];
+    const sent=[], displayReports=[];
     const env={document:{getElementById:id=>elements[id],createElement:()=>new Element()},
+        reportDisplay:counts=>displayReports.push(clone(counts)),
         sleep:async()=>{if(pendingSleep)await pendingSleep();},
         fetch:async(url,options)=>{
             const data=options&&options.body?JSON.parse(options.body):{};
@@ -38,7 +43,7 @@ function setup(library={primary:item('primary'),additional:[item('a',true),item(
     };
     const context={window:{},Object,JSON};vm.runInNewContext(source,context);const ui=context.window.createPayloadUI(env);
     const click=id=>elements[id].events.click();
-    return{ui,sent,elements,click,library,state,fail:id=>{failId=id;},sleep:fn=>{pendingSleep=fn;}};
+    return{ui,sent,elements,click,library,state,displayReports,fail:id=>{failId=id;},sleep:fn=>{pendingSleep=fn;}};
 }
 
 test('empty upload-first setup stops before the exploit and injects nothing',async()=>{
@@ -69,4 +74,42 @@ test('reentry retains send history; only a fresh loader session resets it',async
 });
 test('refresh adds uploaded payloads without hardcoded buttons',async()=>{
     const p=setup();await p.ui.prepare();await p.ui.ready(true);p.library.additional.push(item('d'));await p.click('payload-refresh');assert.equal(p.elements['payload-list'].children.length,4);
+});
+test('each payload card loads its own file, with startup and duplicate guards',async()=>{
+    const p=setup();await p.ui.prepare();await p.ui.ready(true);p.click('additional-button');
+    const row=p.elements['payload-list'].children[1];
+    await row.events.click();assert.deepEqual(p.sent,[]);
+    await p.click('primary-button');p.click('primary-ready');
+    await row.events.click();await row.events.click();assert.deepEqual(p.sent,['primary','b']);
+    await p.click('restore-button');assert.deepEqual(p.sent,['primary','b','a','c']);
+    assert.equal(p.elements['payload-list'].children.length,3);
+});
+test('display reports count built rows after refresh without sending payloads',async()=>{
+    const p=setup();await p.ui.prepare();await p.ui.ready(true);p.click('additional-button');
+    assert.deepEqual(p.displayReports.at(-1),{expected:3,built:3});
+    p.library.additional.push(item('d'));await p.click('payload-refresh');
+    assert.deepEqual(p.displayReports.at(-1),{expected:4,built:4});assert.deepEqual(p.sent,[]);
+});
+test('prepares each row and text element before readiness and preserves unchanged rows on refresh',async()=>{
+    const p=setup();await p.ui.prepare();
+    const rows=p.elements['payload-list'].children.slice();
+    for(const row of rows){assert.ok(row.layoutReads);for(const child of row.children)assert.ok(child.layoutReads);}
+    await p.ui.ready(true);await p.click('payload-refresh');
+    rows.forEach((row,i)=>assert.equal(p.elements['payload-list'].children[i],row));
+    assert.deepEqual(p.sent,[]);
+});
+test('refresh reconciles reorder, removal and metadata while using the latest file revision',async()=>{
+    const p=setup();await p.ui.prepare();await p.ui.ready(true);
+    const rows=p.elements['payload-list'].children.slice();
+    p.library.additional=[p.library.additional[2],p.library.additional[0],item('d')];
+    p.library.additional[1].active.sha256='9'.repeat(64);
+    await p.click('payload-refresh');
+    assert.equal(p.elements['payload-list'].children[0],rows[2]);
+    assert.equal(p.elements['payload-list'].children[1],rows[0]);
+    assert.equal(p.elements['payload-list'].children.length,3);
+    await p.click('primary-button');p.click('primary-ready');await rows[0].events.click();
+    assert.equal(p.state.session.attempts.a.sha256,'9'.repeat(64));
+    p.library.additional[0].restore=false;await p.click('payload-refresh');
+    assert.equal(p.elements['payload-list'].children[0].children.some(n=>n.className==='restore-badge'),false);
+    assert.equal(p.elements['payload-list'].children[1],rows[0]);
 });

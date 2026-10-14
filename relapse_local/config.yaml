@@ -1,5 +1,5 @@
 name: HA Relapse
-version: "0.4.4"
+version: "0.4.7"
 slug: relapse_local
 description: Local Relapse web host and PS5-only DNS for firmware 13.60
 arch:

@@ -1,4 +1,4 @@
-# HA Relapse 0.4.4
+# HA Relapse 0.4.7
 
 Local Relapse hosting and payload management for **Home Assistant OS and PS5 Relapse exploit**. Exploit files are included; upload your own payloads. HA needs internet access for installation, but the PS5 can operate with WAN blocked.
 
@@ -71,7 +71,7 @@ If your router matches IPs instead, use your reserved `PS5_IP` for IPv4 and conf
 | Another combined ELF | Must support your firmware and loader. |
 
 3. In **Additional payloads**, upload tools such as **ShadowMountPlus** or an FTP payload.
-4. Before loading them on the PS5, run Relapse and your primary payload. Wait for its startup notification or verify it is running, then click **Primary payload started**. This unlocks additional payloads and **Restore payloads**.
+4. Before loading them on the PS5, run Relapse and your primary payload. Wait for its startup notification or verify it is running. Open **Payloads**, then click **Primary payload started**. This unlocks additional payloads and **Restore payloads**.
 
 Choose firmware-compatible releases without duplicate components. If your ShadowMountPlus release requires standalone kstuff without etaHEN, use that combination. Compatibility is your responsibility.
 
@@ -90,8 +90,8 @@ On the PS5, selected entries show **Restore** in green beneath their names. Pres
 2. Keep **IP Address Settings = Automatic**. Set **DNS Settings = Manual**: **Primary = your `HA_IP`**, **Secondary = `0.0.0.0`**. Save; keep the local network connected. Apply this DNS change only to the PS5, not your router or HA.
 3. Open **User's Guide** from PS5 Settings. Accept the local certificate prompt if shown, then select **Relapse**.
 4. Wait for the exploit to finish. Select **Primary payload**.
-5. Wait for its PS5 startup notification or verify it is running, then click **Primary payload started** to unlock additional payloads and **Restore payloads**.
-6. Open **Payloads**, then click **Primary payload started** to unlock additional payloads and **Restore payloads**. Select one entry to load it, or **Restore payloads** to load your selected entries in order.
+5. Wait for its PS5 startup notification or verify it is running, then open **Payloads**.
+6. Click **Primary payload started** to unlock additional payloads and **Restore payloads**. Select one entry to load it, or **Restore payloads** to load your selected entries in order.
 
 Repeat after a full PS5 shutdown: app icons can remain while payloads need reloading. **Sent** confirms transfer, not successful startup.
 
@@ -139,8 +139,8 @@ If your router has no reservation feature, a manually configured static address 
 
 - **App missing from the store:** check `addons/relapse_local/config.yaml`, reload the store, then refresh the page.
 - **App will not start:** check its log for an IP setting or port conflict. Ports 53, 80 and 443 must be available for the mappings above.
-- **Check the running version:** open `http://HA_IP/health`—use `http://HA_IP:8088/health` if keeping the default HTTP mapping. This guide covers **0.4.4**.
-- **Restore unavailable:** confirm primary startup and select at least one additional payload in HA. Entries already attempted in this session are skipped.
+- **Check the running version:** open `http://HA_IP/health`—use `http://HA_IP:8088/health` if keeping the default HTTP mapping. This guide covers **0.4.7**.
+- **Restore unavailable:** open **Payloads** on the PS5 and confirm primary startup; select at least one additional payload in HA. Entries already attempted in this session are skipped.
 
 ## Credits
 

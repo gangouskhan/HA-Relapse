@@ -1,3 +1,10 @@
+# 0.4.7
+
+- Fix the PS5 payload screen showing only ShadowMountPlus even though the count included other payloads and Restore could load them. Missing green Restore labels and transfer status are also fixed. Confirmed on the affected PS5 running 13.60.
+- Lay out the additional panel and its text before Relapse, following the upstream prebuilt-menu approach, and preserve unchanged rows on Refresh.
+- Show the payload count and keep compact display diagnostics in the local HA log, without filenames or payload contents.
+- Correct the launch instructions: load the primary payload, wait for startup, open **Payloads**, then click **Primary payload started**.
+
 # 0.4.4
 
 - Show Restore selections as clear green `Restore` text beneath payload names on the PS5.
