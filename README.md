@@ -1,4 +1,4 @@
-# HA Relapse 0.4.7
+# HA Relapse 0.4.8
 
 Local Relapse hosting and payload management for **Home Assistant OS and PS5 Relapse exploit**. Exploit files are included; upload your own payloads. HA needs internet access for installation, but the PS5 can operate with WAN blocked.
 
@@ -32,6 +32,8 @@ A reservation keeps the same address after restarts without manually configuring
 
 HA Relapse's DNS blocks normal lookups for PlayStation servers; the Guide and connectivity-check names resolve locally instead. This only covers queries sent to HA. Cached addresses, direct-IP connections or another DNS resolver can bypass it. Choose the full WAN setup below if you want to prevent all PS5 internet access, including those routes, while keeping LAN access.
 
+For internet access through nanoDNS instead, use the optional setup below. Keep your existing port mappings; a full WAN block would also block the internet access you want.
+
 For full WAN isolation, give Relapse port **80**:
 
 1. If HA uses port **80**, open **Settings → System → Network → HTTP server** and change **Server port** to **8123**. If it already uses 8123, leave it there.
@@ -58,6 +60,23 @@ For full WAN isolation, give Relapse port **80**:
 | Local access | Allow PS5 ↔ HA; keep LAN access enabled |
 
 If your router matches IPs instead, use your reserved `PS5_IP` for IPv4 and configure IPv6 blocking separately. An IPv4-only rule does not cover IPv6. A generic **Pause device** option may also block LAN access; check your router's documentation. The confirmed setup used **Reject**; **Drop** is not a verified substitute.
+
+### Optional: internet through nanoDNS
+
+Keep the PS5's DNS pointed at HA. Relapse stays local; nanoDNS filters other lookups once loaded.
+
+1. Download **`nanodns.elf` (PS5)** from the [nanoDNS 0.4 release](https://github.com/drakmor/nanoDNS/releases/tag/0.4). **`nanodns-ps4.elf` is the PS4 build** and will not work on PS5; renaming it does not convert it. Payload Manager may display only the short name, so check the uploaded file.
+2. Back up your existing INI. In the ZIP's `relapse_local/examples/nanodns.ini.example`, replace **`PS5_IP`** with the PS5's reserved address. Save it on the PS5 as **`/data/nanodns/nanodns.ini`**, using your file manager. `bind` is the PS5's address; it must not be HA's address.
+3. In HA Relapse **Configuration**, set **nanoDNS PS5 IP** (`nanodns_ip`) to `PS5_IP`. Keep `server_ip` set to `HA_IP`. Save and restart HA Relapse. If the optional field is hidden, enable **Show unused optional configuration options** or use the configuration YAML editor to add `nanodns_ip: "PS5_IP"` with your actual address.
+4. Keep the PS5's **Primary DNS = `HA_IP`**, **Secondary = `0.0.0.0`**. Its own LAN address stays unchanged.
+5. Upload the PS5 ELF under **Additional payloads**. After Relapse and the primary payload have started, open **Payloads**, confirm **Primary payload started**, then load nanoDNS. Tick **Include in restore** in HA and place it before tools that need internet. Reload nanoDNS after each full PS5 shutdown; INI changes apply at its next startup.
+6. Allow IPv4 internet access and LAN traffic between HA and the PS5. nanoDNS must be able to reach its upstream DNS servers on **UDP 53**. Keep any router-level IPv6 block you use; `bind6=off` only disables nanoDNS's IPv6 listener.
+
+The example has no Sony exceptions. nanoDNS's stock exceptions allow some PlayStation domains, so replacing only `bind` in the stock file does not apply this policy. Keep its upstream servers external: **never point them back at HA**, which would create a forwarding loop. [nanoDNS configuration](https://github.com/drakmor/nanoDNS#config)
+
+Before nanoDNS starts, other DNS lookups fail; HA does not fall back to another resolver. This does not disconnect existing connections or block direct IPs, cached addresses or DNS-over-HTTPS. **Filtered internet access is not complete Sony/WAN isolation.** Leave `nanodns_ip` empty and restart HA Relapse to return to offline DNS.
+
+Verified on PS5 **13.60** with nanoDNS **0.4**: allowed lookups through HA over UDP/TCP, blocked Sony API/update samples, and local Guide/connectivity responses. Recomp Store and GitHub lookups succeeded. Repeated-boot reliability has not been tested.
 
 ### 4. Upload your payloads
 
@@ -111,7 +130,11 @@ HA also resolves `ena.net.playstation.net` locally: `/netstart/icst` returns `Su
 
 Those checks use HTTP port **80**. For full WAN isolation, Relapse must answer them locally, so free **80** by moving HA to another port, such as **8123**, if necessary. DNS-only setups can keep HA's existing port and Relapse on **8088**. Relapse reads its configured host port at startup.
 
-Other names receive no external DNS resolution. **DNS blocking is partial isolation, not a firewall**: it cannot stop connections that bypass its lookups. [DNS filtering limitations](https://developers.cloudflare.com/learning-paths/cybersafe/concepts/what-is-dns-filtering/). The optional router rule blocks WAN traffic for both IPv4 and IPv6 while allowing LAN access. Successful 13.60 runs with **Any / Reject** were reported on 0.4.2; reliability across repeated attempts remains unverified.
+By default, other names receive no external DNS resolution. With `nanodns_ip` set, HA sends those requests through a loopback-only UDP/TCP adapter to nanoDNS's UDP listener on the PS5. Only nanoDNS chooses an external resolver and applies its INI rules; HA keeps answering Guide and connectivity names locally. HA does not use its system resolver or another upstream if nanoDNS is unavailable. Its startup log and `/health` identify the configured mode, not whether nanoDNS is currently running.
+
+The lookup path is **PS5 → HA Relapse → nanoDNS on PS5 → external DNS**. Guide/connectivity lookups stop at HA. In the example INI, matching Sony domains return `0.0.0.0`; other domains go to the listed upstream servers. nanoDNS's empty `[exceptions]` section prevents the stock Sony exceptions from bypassing those rules. An IPv4 DNS query can still request an IPv6 address, so disabling the IPv6 listener is not an IPv6 traffic block.
+
+**DNS blocking is partial isolation, not a firewall**: it cannot stop connections that bypass its lookups or guarantee that a domain list covers every Sony service. [DNS filtering limitations](https://developers.cloudflare.com/learning-paths/cybersafe/concepts/what-is-dns-filtering/). The optional full WAN rule blocks traffic for both IPv4 and IPv6 while allowing LAN access. Successful 13.60 runs with **Any / Reject** were reported on 0.4.2; reliability across repeated attempts remains unverified.
 
 ### Exploit and payload flow
 
@@ -133,16 +156,20 @@ Rollback changes the file available for a future load. It cannot undo a running 
 
 A DHCP reservation ties an address to one network adapter's MAC. Switching between Wi-Fi and Ethernet requires updating the reservation and PS5 firewall match for the new adapter. If HA's address changes, update `server_ip`, restart HA Relapse, and update the PS5's primary DNS and your saved URLs.
 
+If using nanoDNS and the PS5's address changes, update HA's `nanodns_ip` and the PS5 INI's `bind`, then restart both services.
+
 If your router has no reservation feature, a manually configured static address is an alternative: choose an unused address in the same subnet, exclude it from the router's DHCP pool, and supply the correct subnet mask, gateway and DNS. Follow your router's and [HA's network instructions](https://developers.home-assistant.io/docs/operating-system/network/). Reservations are the simpler setup described above.
 
 ### Quick checks
 
 - **App missing from the store:** check `addons/relapse_local/config.yaml`, reload the store, then refresh the page.
 - **App will not start:** check its log for an IP setting or port conflict. Ports 53, 80 and 443 must be available for the mappings above.
-- **Check the running version:** open `http://HA_IP/health`—use `http://HA_IP:8088/health` if keeping the default HTTP mapping. This guide covers **0.4.7**.
+- **Check the running version:** open `http://HA_IP/health`—use `http://HA_IP:8088/health` if keeping the default HTTP mapping. This guide covers **0.4.8**. `dns_mode` is `offline` or `nanodns`.
+- **nanoDNS has no internet:** check `/health` shows `dns_mode: nanodns` and your `PS5_IP`. Confirm you uploaded the PS5 ELF and started it after updating the INI. Its log at `/data/nanodns/nanodns.log` should show `listening on PS5_IP:53`. Allow IPv4 WAN access and HA → PS5 UDP 53. If HA logs a DNS loop, correct nanoDNS's upstream and restart nanoDNS and HA Relapse.
 - **Restore unavailable:** open **Payloads** on the PS5 and confirm primary startup; select at least one additional payload in HA. Entries already attempted in this session are skipped.
 
 ## Credits
 
 - **Relapse exploit:** [Sonic_Iso / soniciso1](https://github.com/soniciso1/relapse), Jordy, ntfargo, ufm42 and Dr. Yenyen, with the researchers and contributors credited in [Relapse-Exploit](https://github.com/ntfargo/Relapse-Exploit). HA Relapse packages their exploit work with a local host and payload interface.
 - **Offline HTTP and connectivity approach:** [owendswang's PS5 WebKit Autoloader for ESP32](https://github.com/owendswang/ps5-webkit-autoloader-esp32). Its [local connectivity replies and HTTPS-to-HTTP handoff](https://github.com/owendswang/ps5-webkit-autoloader-esp32/blob/da9aaf0931b3fd9d1fd66c3910ec1cc7414482ce/esp32-arduino.ino) informed the fix. This reference is an ESP32 host, rather than an HA add-on.
+- **Optional DNS payload and example rules:** [drakmor/nanoDNS](https://github.com/drakmor/nanoDNS). nanoDNS is uploaded separately and is not bundled.

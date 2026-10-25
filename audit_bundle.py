@@ -8,7 +8,9 @@ import re
 import sys
 import zipfile
 
-archive = Path(sys.argv[1]) if len(sys.argv) > 1 else Path(__file__).parent / 'dist' / 'relapse-local-ha-0.4.7.zip'
+root = Path(__file__).resolve().parent
+source_version = re.search(r'^version: "([^"]+)"$', (root / 'relapse_local/config.yaml').read_text(), re.M)[1]
+archive = Path(sys.argv[1]) if len(sys.argv) > 1 else root / 'dist' / ('relapse-local-ha-' + source_version + '.zip')
 with zipfile.ZipFile(archive) as bundle:
     names = set(bundle.namelist())
     assert bundle.testzip() is None
@@ -44,7 +46,7 @@ with zipfile.ZipFile(archive) as bundle:
             target=posixpath.normpath(posixpath.join(base,url.split('?')[0]))
             assert target in names,(filename,url,target)
             edges.add((filename,url,target))
-    for filename in ('Dockerfile','config.yaml','run.sh','host.py','http_api.py','payload_store.py','admin/index.html','admin/app.js','admin/style.css','DOCS.md'):
+    for filename in ('Dockerfile','config.yaml','run.sh','host.py','http_api.py','payload_store.py','dns_forwarder.py','translations/en.yaml','examples/nanodns.ini.example','admin/index.html','admin/app.js','admin/style.css','DOCS.md'):
         assert 'relapse_local/'+filename in names
     for directory in ('relapse','payload-menu'):
         assert 'relapse_local/www/'+directory+'/offsets/13.60.js' in names

@@ -1,0 +1,30 @@
+# Replace PS5_IP with the PS5's reserved LAN IPv4 address before uploading.
+# Save as /data/nanodns/nanodns.ini on the PS5, not on Home Assistant.
+# Based on drakmor/nanoDNS 0.4. The Sony exceptions are intentionally empty.
+
+[general]
+log=/data/nanodns/nanodns.log
+debug=0
+quiet=0
+bind=PS5_IP
+bind6=off
+
+[upstream]
+# Use external resolvers here, never HA or a resolver that forwards back to HA.
+server=1.1.1.1
+server=8.8.8.8
+timeout_ms=1500
+
+[overrides]
+*.playstation.com=0.0.0.0
+*.playstation.com.*=0.0.0.0
+playstation.com=0.0.0.0
+*.playstation.net=0.0.0.0
+*.playstation.net.*=0.0.0.0
+playstation.net=0.0.0.0
+*.psndl.net=0.0.0.0
+psndl.net=0.0.0.0
+*.sonyentertainmentnetwork.com=0.0.0.0
+sonyentertainmentnetwork.com=0.0.0.0
+
+[exceptions]

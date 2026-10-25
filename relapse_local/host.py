@@ -1,4 +1,4 @@
-"""Serve pinned Relapse assets with an HTTPS entry, local HTTP and offline DNS."""
+"""Serve pinned Relapse assets with local DNS and optional nanoDNS forwarding."""
 
 import argparse
 import functools
@@ -18,6 +18,7 @@ import threading
 from urllib.parse import unquote, urlsplit
 from payload_store import PayloadStore, SessionStore, StoreError
 from http_api import AdminHandler, PublicApi, VERSION
+from dns_forwarder import NanoDNSRelay
 
 GUIDE_NAMES = (
     "support.playstation.com",
@@ -36,6 +37,20 @@ def validate_ip(value):
     if ip.is_unspecified or ip.is_multicast or ip.is_loopback or not ip.is_private:
         raise ValueError("server_ip must be the Home Assistant computer's private LAN IPv4 address")
     return str(ip)
+
+
+def validate_nanodns_ip(value, server_ip):
+    if value is None or value == "":
+        return ""
+    try:
+        if not isinstance(value, str):
+            raise ValueError
+        address = validate_ip(value)
+    except (ValueError, TypeError):
+        raise ValueError("nanodns_ip must be the PS5's private LAN IPv4 address, or empty") from None
+    if address == server_ip:
+        raise ValueError("nanodns_ip must be the PS5's address, not Home Assistant's address")
+    return address
 
 
 def http_origin(server_ip, port):
@@ -68,13 +83,20 @@ def verify_bundle(webroot):
     return manifest["commit"]
 
 
-def dns_config(server_ip, port, listen):
-    # No DHCP, resolver forwarding, or dependency on the router's DNS service.
+def dns_config(server_ip, port, listen, nanodns_ip="", relay_port=None):
+    nanodns_ip = validate_nanodns_ip(nanodns_ip, server_ip)
+    # Never consult the container/router resolver or use an external fallback.
     lines = [
         f"port={port}", f"listen-address={listen}", "bind-interfaces",
-        "no-resolv", "no-hosts", "local=/#/", "cache-size=0",
+        "no-resolv", "no-hosts", "cache-size=0",
         "log-facility=-", "pid-file=", f"user={pwd.getpwuid(os.getuid()).pw_name}",
     ]
+    if nanodns_ip:
+        if not isinstance(relay_port, int) or not 1 <= relay_port <= 65535 or relay_port == port:
+            raise ValueError("nanoDNS forwarding requires a separate local relay port")
+        lines.extend([f"server=127.0.0.1#{relay_port}", "dns-loop-detect"])
+    else:
+        lines.append("local=/#/")
     for name in LOCAL_NAMES:
         lines.extend([f"address=/{name}/{server_ip}", f"local=/{name}/"])
     return "\n".join(lines) + "\n"
@@ -172,7 +194,9 @@ class Handler(PublicApi, http.server.SimpleHTTPRequestHandler):
         if path == "/health":
             body = json.dumps({"status": "ok", "version": VERSION, "relapse_commit": self.server.commit,
                                "public_http_url": getattr(self.server, "public_http_origin", None),
-                               "connectivity_http_port80": getattr(self.server, "public_http_port", None) == 80}).encode()
+                               "connectivity_http_port80": getattr(self.server, "public_http_port", None) == 80,
+                               "dns_mode": "nanodns" if getattr(self.server, "nanodns_ip", "") else "offline",
+                               "nanodns_ip": getattr(self.server, "nanodns_ip", "")}).encode()
             self.send_response(200)
             self.send_header("Content-Type", "application/json")
             self.send_header("Content-Length", str(len(body)))
@@ -218,6 +242,7 @@ class Handler(PublicApi, http.server.SimpleHTTPRequestHandler):
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--server-ip")
+    parser.add_argument("--nanodns-ip", help="PS5 LAN IPv4 address; empty disables forwarding")
     parser.add_argument("--data-dir", type=Path, default=Path("/data"))
     parser.add_argument("--webroot", type=Path, default=ROOT / "www")
     parser.add_argument("--listen", default="0.0.0.0")
@@ -236,6 +261,8 @@ def main():
             parser.error("ports must be between 1 and 65535")
     options = json.loads((args.data_dir / "options.json").read_text()) if not args.server_ip else {}
     server_ip = validate_ip(args.server_ip or options["server_ip"])
+    nanodns_ip = validate_nanodns_ip(
+        args.nanodns_ip if args.nanodns_ip is not None else options.get("nanodns_ip", ""), server_ip)
     public_http_origin = http_origin(server_ip, args.public_http_port)
     commit = verify_bundle(args.webroot)
     args.data_dir.mkdir(parents=True, exist_ok=True)
@@ -243,15 +270,20 @@ def main():
     sessions = SessionStore(args.data_dir, payloads)
     certificate, key = ensure_certificate(args.data_dir, server_ip)
     conf = args.data_dir / "dnsmasq.conf"
-    conf.write_text(dns_config(server_ip, args.dns_port, args.listen))
-    subprocess.run(["dnsmasq", "--test", "--conf-file=" + str(conf)], check=True)
 
     stop = threading.Event()
     for sig in (signal.SIGINT, signal.SIGTERM):
         signal.signal(sig, lambda *_: stop.set())
     servers, threads = [], []
     dns = None
+    relay = None
     try:
+        if nanodns_ip:
+            relay = NanoDNSRelay(nanodns_ip)
+            relay.start()
+        conf.write_text(dns_config(server_ip, args.dns_port, args.listen, nanodns_ip,
+                                   relay.port if relay else None))
+        subprocess.run(["dnsmasq", "--test", "--conf-file=" + str(conf)], check=True)
         handler = functools.partial(Handler, directory=str(args.webroot))
         for port, tls in ((args.http_port, False), (args.https_port, True)):
             server = Server((args.listen, port), handler)
@@ -259,6 +291,7 @@ def main():
             server.commit = commit
             server.public_http_origin = public_http_origin
             server.public_http_port = args.public_http_port
+            server.nanodns_ip = nanodns_ip
             server.payloads = payloads
             server.sessions = sessions
             if tls:
@@ -278,14 +311,20 @@ def main():
             thread.start()
             threads.append(thread)
         print(f"Relapse {commit}: verified. DNS redirects guide and connectivity domains to {server_ip}.", flush=True)
-        print("Ready: local HTTP, HTTPS and DNS. Other DNS names stay offline.", flush=True)
+        print("Ready: local HTTP, HTTPS and DNS.", flush=True)
+        if nanodns_ip:
+            print(f"Other DNS names go only to nanoDNS at {nanodns_ip}:53; no fallback resolver. "
+                  "Filtering requires nanoDNS to be running and configured on the PS5.", flush=True)
+        else:
+            print("Other DNS names stay offline. nanoDNS forwarding is disabled.", flush=True)
         print(f"User's Guide handoff: {public_http_origin}/", flush=True)
         if args.public_http_port != 80:
             print("Connectivity checks need host HTTP port 80. Current mapping is "
                   f"{args.public_http_port}; free port 80 before changing the app's Network setting.", flush=True)
         print(f"HA Relapse {VERSION}: ingress management on {args.admin_port}; user payloads in persistent storage.", flush=True)
         while not stop.wait(0.25):
-            if dns.poll() is not None or not all(t.is_alive() for t in threads):
+            if (dns.poll() is not None or not all(t.is_alive() for t in threads)
+                    or (relay is not None and not relay.healthy())):
                 raise RuntimeError("A hosting service stopped; exiting so Supervisor can restart the app")
     finally:
         if dns is not None and dns.poll() is None:
@@ -300,6 +339,8 @@ def main():
             thread.join(timeout=2)
         for server in servers:
             server.server_close()
+        if relay is not None:
+            relay.close()
 
 
 if __name__ == "__main__":
