@@ -1,3 +1,10 @@
+# 0.4.8
+
+- Optional `nanodns_ip`: keep PS5 DNS pointed at HA while forwarding other DNS requests to nanoDNS on the PS5. User's Guide and connectivity responses stay local, including before nanoDNS starts.
+- No fallback to HA's, the router's or a public DNS resolver. Detect forwarding loops; reject HA's own address as the nanoDNS destination. Leaving the option empty preserves offline DNS.
+- Add nanoDNS setup instructions, including the correct PS5 ELF, its LAN listener, empty Sony exceptions and the difference between filtering and full WAN isolation. Payloads remain user supplied.
+- Local DNS integration tests cover forwarding, local redirects, upstream failure/recovery and offline updates. Verified on PS5 13.60 with nanoDNS 0.4: allowed HA UDP/TCP lookups, blocked Sony API/update samples and local Guide/connectivity responses. Repeated-boot reliability is untested.
+
 # 0.4.7
 
 - Fix the PS5 payload screen showing only ShadowMountPlus even though the count included other payloads and Restore could load them. Missing green Restore labels and transfer status are also fixed. Confirmed on the affected PS5 running 13.60.
