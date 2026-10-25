@@ -1,0 +1,7 @@
+configuration:
+  server_ip:
+    name: Home Assistant IP
+    description: Home Assistant's local IPv4 address.
+  nanodns_ip:
+    name: nanoDNS PS5 IP (optional)
+    description: PS5's local IPv4 address. Leave empty for offline DNS.
