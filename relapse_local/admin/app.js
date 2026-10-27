@@ -17,7 +17,7 @@
     }
     function setBusy(value) {
         busy = value;
-        for (const node of document.querySelectorAll("button,input")) {
+        for (const node of document.querySelectorAll("#primary-panel button,#primary-panel input,#additional-panel button,#additional-panel input")) {
             if (node.getAttribute("role") !== "tab") node.disabled = value || node.dataset.unavailable === "true";
         }
     }
@@ -156,18 +156,20 @@
         catalog.additional.forEach((entry, index) => get("additional-list").append(payloadCard(entry, false, index)));
         setBusy(busy);
     }
+    const tabs = ["primary", "additional", "klog"];
     function tab(name) {
-        for (const value of ["primary", "additional"]) {
+        for (const value of tabs) {
             get("tab-" + value).setAttribute("aria-selected", String(value === name));
             get("tab-" + value).tabIndex = value === name ? 0 : -1;
             get(value + "-panel").hidden = value !== name;
         }
+        document.dispatchEvent(new CustomEvent("relapse:tab", {detail:name}));
     }
-    for (const name of ["primary", "additional"]) {
+    for (const name of tabs) {
         get("tab-" + name).addEventListener("click", () => tab(name));
         get("tab-" + name).addEventListener("keydown", event => {
             if (event.key === "ArrowLeft" || event.key === "ArrowRight") {
-                event.preventDefault(); const other = name === "primary" ? "additional" : "primary";
+                event.preventDefault(); const other = tabs[(tabs.indexOf(name) + (event.key === "ArrowRight" ? 1 : tabs.length - 1)) % tabs.length];
                 tab(other); get("tab-" + other).focus();
             }
         });

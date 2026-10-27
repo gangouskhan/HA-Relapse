@@ -3,20 +3,22 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>HA Relapse · Payload library</title>
+  <title>HA Relapse</title>
   <link rel="stylesheet" href="style.css">
   <script src="app.js" defer></script>
+  <script src="klog.js" defer></script>
 </head>
 <body>
 <main>
   <header class="masthead">
     <div class="brand"><span class="brand-mark" aria-hidden="true">R</span><span>HA Relapse</span></div>
-    <div class="host-tag"><span class="status-dot"></span> Local host <span id="version">0.4.8</span></div>
+    <div class="host-tag"><span class="status-dot"></span> Local host <span id="version">0.4.11</span></div>
   </header>
   <div id="notice" class="notice" role="status" aria-live="polite" hidden></div>
-  <div class="tabs" role="tablist" aria-label="Payload library">
+  <div class="tabs" role="tablist" aria-label="HA Relapse">
     <button id="tab-primary" type="button" role="tab" aria-controls="primary-panel" aria-selected="true">Primary payload <span>01</span></button>
     <button id="tab-additional" type="button" role="tab" aria-controls="additional-panel" aria-selected="false" tabindex="-1">Additional payloads <span id="additional-count">0</span></button>
+    <button id="tab-klog" type="button" role="tab" aria-controls="klog-panel" aria-selected="false" tabindex="-1">Klog</button>
   </div>
   <section id="primary-panel" role="tabpanel" aria-labelledby="tab-primary">
     <div class="section-heading"><h2>Primary payload</h2></div>
@@ -30,6 +32,24 @@
       <div id="primary-current" class="current-area"></div>
     </div>
   </section>
+  <section id="klog-panel" role="tabpanel" aria-labelledby="tab-klog" hidden>
+    <div class="section-heading"><h2>Klog</h2><span id="klog-status" class="klog-status" role="status">Not connected</span></div>
+    <form id="klog-connect" class="klog-connect">
+      <label>PS5 IP<input id="klog-host" type="text" inputmode="decimal" autocomplete="off" placeholder="PS5 LAN address" required></label>
+      <label>Port<input id="klog-port" type="number" min="1" max="65535" value="3232" required></label>
+      <button id="klog-start" type="submit" class="accent">Connect</button>
+      <button id="klog-stop" type="button" disabled>Stop</button>
+    </form>
+    <p class="klog-note">Start the klog payload on PS5 first. Connect records on HA until stopped or disconnected.</p>
+    <div class="klog-viewer">
+      <div class="klog-toolbar"><strong id="klog-view-title">Live output</strong><div><a id="klog-save" class="button-link" hidden>Save to device</a></div></div>
+      <pre id="klog-output" tabindex="0" aria-label="Klog output">Connect to start a recording.</pre>
+      <div class="klog-view-footer"><span id="klog-position"></span><button id="klog-more" class="quiet" type="button" hidden>Read more</button></div>
+    </div>
+    <div class="section-heading"><h2>Recordings</h2><button id="klog-refresh" type="button" class="quiet">Refresh</button></div>
+    <p id="klog-storage" class="klog-note"></p>
+    <div id="klog-recordings"></div>
+  </section>
   <section id="additional-panel" role="tabpanel" aria-labelledby="tab-additional" hidden>
     <div class="section-heading"><h2>Additional payloads</h2><button id="refresh" type="button" class="quiet">Refresh</button></div>
     <form id="additional-upload" class="additional-upload">
@@ -40,7 +60,7 @@
     <div id="additional-list"></div>
   </section>
   <section id="upload-progress" class="progress-card" aria-label="Upload progress" hidden><span id="progress-label"></span><progress id="progress" max="100" value="0"></progress></section>
-  <footer><span>64 MiB per file</span><span>HA Relapse</span></footer>
+  <footer><span>Payloads: 64 MiB per file</span><span>HA Relapse</span></footer>
 </main>
 </body>
 </html>
