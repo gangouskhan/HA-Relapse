@@ -19,6 +19,7 @@ from urllib.parse import unquote, urlsplit
 from payload_store import PayloadStore, SessionStore, StoreError
 from http_api import AdminHandler, PublicApi, VERSION
 from dns_forwarder import NanoDNSRelay
+from klog import KlogStore
 
 GUIDE_NAMES = (
     "support.playstation.com",
@@ -268,6 +269,7 @@ def main():
     args.data_dir.mkdir(parents=True, exist_ok=True)
     payloads = PayloadStore(args.data_dir)
     sessions = SessionStore(args.data_dir, payloads)
+    klog = KlogStore(args.data_dir)
     certificate, key = ensure_certificate(args.data_dir, server_ip)
     conf = args.data_dir / "dnsmasq.conf"
 
@@ -303,6 +305,7 @@ def main():
             AdminHandler, directory=str(ROOT / "admin")))
         admin.admin_peer = args.admin_peer
         admin.payloads = payloads
+        admin.klog = klog
         admin.upload_slots = threading.BoundedSemaphore(2)
         servers.append(admin)
         dns = subprocess.Popen(["dnsmasq", "--keep-in-foreground", "--conf-file=" + str(conf)])
@@ -327,6 +330,7 @@ def main():
                     or (relay is not None and not relay.healthy())):
                 raise RuntimeError("A hosting service stopped; exiting so Supervisor can restart the app")
     finally:
+        klog.close()
         if dns is not None and dns.poll() is None:
             dns.terminate()
             try:

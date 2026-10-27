@@ -4,12 +4,13 @@ import http.server
 import io
 import json
 import re
+import time
 from pathlib import Path
 from urllib.parse import parse_qs, unquote, urlsplit
 
 from payload_store import MAX_PAYLOAD, StoreError
 
-VERSION = "0.4.8"
+VERSION = "0.4.11"
 
 
 class ApiMixin:
@@ -170,12 +171,44 @@ class AdminHandler(ApiMixin, http.server.SimpleHTTPRequestHandler):
     def send_head(self):
         if not self.allowed():
             return self.json_response({"error": "Open this page through Home Assistant"}, 403)
-        path = unquote(urlsplit(self.path).path)
+        parts = urlsplit(self.path)
+        path = unquote(parts.path)
         if path == "/api/catalog":
             return self.json_response(self.catalog())
-        if path not in ("/", "/index.html", "/app.js", "/style.css"):
+        if path.startswith("/api/klog/"):
+            try:
+                return self.klog_head(path, parts.query)
+            except StoreError as error:
+                return self.json_response({"error": str(error)}, error.status)
+            except OSError:
+                return self.json_response({"error": "Could not read the recording"}, 503)
+        if path not in ("/", "/index.html", "/app.js", "/klog.js", "/style.css"):
             return self.json_response({"error": "Not found"}, 404)
         return super().send_head()
+
+    def klog_head(self, path, query):
+        store = self.server.klog
+        if path == "/api/klog/status":
+            return self.json_response(store.catalog())
+        values = parse_qs(query, keep_blank_values=True)
+        if any(len(items) != 1 for items in values.values()):
+            raise StoreError("Duplicate recording field")
+        identity = values.get("id", [None])[0]
+        if path == "/api/klog/read":
+            position = values.get("offset", ["0"])[0]
+            if not re.fullmatch(r"[0-9]{1,16}", position):
+                raise StoreError("Invalid log position")
+            return self.json_response(store.read(identity, int(position)))
+        if path == "/api/klog/download":
+            stream, length, record = store.open_recording(identity)
+            stamp = time.strftime("%Y%m%d-%H%M%S", time.gmtime(record["started"]))
+            self.send_response(200)
+            self.send_header("Content-Type", "text/plain; charset=utf-8")
+            self.send_header("Content-Length", str(length))
+            self.send_header("Content-Disposition", f'attachment; filename="klog-{stamp}-{identity[:8]}.log"')
+            self.end_headers()
+            return stream
+        raise StoreError("Unknown klog endpoint", 404)
 
     def list_directory(self, path):
         return self.json_response({"error": "Not found"}, 404)
@@ -184,6 +217,17 @@ class AdminHandler(ApiMixin, http.server.SimpleHTTPRequestHandler):
         if not self.allowed():
             raise StoreError("Open payload management through Home Assistant", 403)
         parts = urlsplit(self.path)
+        if parts.path.startswith("/api/klog/"):
+            data = self.json_body()
+            if parts.path == "/api/klog/connect":
+                return {"ok": True, "record": self.server.klog.start(data.get("host"), data.get("port", 3232))}
+            if parts.path == "/api/klog/stop":
+                self.server.klog.stop()
+            elif parts.path == "/api/klog/delete":
+                self.server.klog.delete(data.get("id"))
+            else:
+                raise StoreError("Unknown klog action", 404)
+            return {"ok": True}
         store = self.server.payloads
         if parts.path == "/api/upload":
             query = parse_qs(parts.query, keep_blank_values=True)

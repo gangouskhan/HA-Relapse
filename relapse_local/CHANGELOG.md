@@ -1,3 +1,25 @@
+# 0.4.11
+
+- Public release includes the Klog capture/history added in 0.4.9 and automatic scrolling added in 0.4.10. Connect remembers the last IP and port across app restarts.
+- Fix selecting/copying Klog text expanding or resetting during refresh. Keep the log's text node, append new output and skip unchanged text.
+- Pause display changes while text is being selected or remains highlighted; collection on HA continues. Clear the selection to show buffered output.
+- Stop polling a finished recording once all its bytes have been read. Automatic following and scroll-to-pause behavior are retained.
+- Reorganize the README into core features, instructions and how it works, with Klog setup and troubleshooting.
+
+# 0.4.10
+
+- Remove the Klog Follow checkbox. Live output follows automatically, pauses when you scroll up, and resumes when you return to the bottom.
+- Preserve a paused reading position when switching tabs. Capture on HA continues while the viewer is paused.
+- Klog capture and history in 0.4.9 were confirmed working by the user; this update changes the viewer only.
+
+# 0.4.9
+
+- Add a Klog tab to the HA upload interface: connect to the PS5's klog server, view live output, stop capture and browse previous recordings.
+- Record on HA while connected, including when the browser is closed. View, download or delete saved recordings; downloads include all bytes received before the download started.
+- Preserve recordings across app restarts, mark interrupted captures and retain data after connection failures. No automatic reconnect or log deletion.
+- Limit recordings to 64 MiB each, 512 MiB total and 200 entries. Capture stops at the storage limit; delete older recordings to continue. The browser keeps a bounded text preview.
+- Klog APIs are available only through HA ingress. No new published port, exploit modification or bundled klog payload. Local fake-server regression and browser checks cover the new workflow; live PS5 verification is pending.
+
 # 0.4.8
 
 - Optional `nanodns_ip`: keep PS5 DNS pointed at HA while forwarding other DNS requests to nanoDNS on the PS5. User's Guide and connectivity responses stay local, including before nanoDNS starts.
