@@ -8,6 +8,7 @@ from pathlib import Path
 import re
 import signal
 import ssl
+import socket
 import sys
 import tempfile
 import threading
@@ -17,6 +18,7 @@ sys.path.insert(0, str(ADDON))
 from host import Server, Handler, ensure_certificate
 from http_api import AdminHandler
 from payload_store import PayloadStore, SessionStore
+from klog import KlogStore
 
 PREFIX = "/api/hassio_ingress/test-session"
 
@@ -112,10 +114,37 @@ with tempfile.TemporaryDirectory(prefix="ha-relapse-ui-") as temp:
     data = Path(temp)
     store = PayloadStore(data)
     sessions = SessionStore(data, store)
+    # Synthetic log sender: every UI destination is redirected to loopback.
+    klog_listener = socket.socket()
+    klog_listener.bind(("127.0.0.1", 0))
+    klog_listener.listen()
+    klog_listener.settimeout(.5)
+    fixture_stop = threading.Event()
+    def send_logs():
+        while not fixture_stop.is_set():
+            try:
+                connection, _ = klog_listener.accept()
+            except socket.timeout:
+                continue
+            except OSError:
+                return
+            with connection:
+                try:
+                    connection.sendall(b"[fixture] Klog connected - synthetic data only\n")
+                    connection.sendall("[audio] caf\u00e9 - stream ready\n".encode())
+                    connection.sendall(b"[text] <script>untrusted log text</script>\n")
+                    for index in range(1200):
+                        if fixture_stop.wait(.25): break
+                        connection.sendall(f"[game] frame {index:04d}: running normally\n".encode())
+                except OSError:
+                    pass
+    threading.Thread(target=send_logs, daemon=True).start()
+    klog = KlogStore(data, connector=lambda _address, timeout: socket.create_connection(klog_listener.getsockname(), timeout))
     servers = []
     for handler, directory in ((AdminTestHandler, ADDON / "admin"), (PublicTestHandler, ADDON / "www")):
         server = Server(("127.0.0.1", 0), partial(handler, directory=str(directory)))
         server.payloads = store
+        server.klog = klog
         server.sessions = sessions
         server.admin_peer = "127.0.0.1"
         server.upload_slots = threading.BoundedSemaphore(2)
@@ -144,6 +173,9 @@ with tempfile.TemporaryDirectory(prefix="ha-relapse-ui-") as temp:
     print(json.dumps({"admin": f"http://127.0.0.1:{proxy.server_port}{PREFIX}/", "public": tls.public_http_origin,
                       "guide": f"https://127.0.0.1:{tls.server_port}/document/gb/ps5/index.html"}), flush=True)
     stop.wait()
+    fixture_stop.set()
+    klog.close()
+    klog_listener.close()
     for server in servers:
         server.shutdown()
         server.server_close()

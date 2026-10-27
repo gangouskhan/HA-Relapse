@@ -1,10 +1,21 @@
-# HA Relapse 0.4.8
+# HA Relapse 0.4.11
 
 Local Relapse hosting and payload management for **Home Assistant OS and PS5 Relapse exploit**. Exploit files are included; upload your own payloads. HA needs internet access for installation, but the PS5 can operate with WAN blocked.
 
-Throughout this guide, **`HA_IP` means your Home Assistant's local IPv4 address** and **`PS5_IP` means your PS5's local IPv4 address**. Replace these placeholders with your own addresses wherever shown.
+## Core features
 
-## Simple setup
+- **Local jailbreak host:** launch Relapse through the PS5 User's Guide using HA as DNS.
+- **Payload library:** upload one primary payload and additional ELFs through HA. Replace files without rebuilding the app and roll back to the previous version.
+- **Restore payloads:** save your additional-payload selections, order and delays, then reload them together after a PS5 restart.
+- **Klog viewer:** connect, record live logs on HA, and view, download or delete previous recordings. The last connected IP and port are remembered.
+- **Automatic scrolling:** live logs follow the bottom, pause when you scroll up or select text, and resume when you return to the bottom and clear the selection.
+- **Network options:** offline DNS by default, optional nanoDNS forwarding for homebrew internet access, and local connectivity responses for router-enforced WAN isolation.
+
+## Instructions
+
+Download **`relapse-local-ha-0.4.11.zip`** from the [latest release](https://github.com/gangouskhan/HA-Relapse/releases/latest). Existing users can go straight to [Update or roll back](#7-update-or-roll-back).
+
+Throughout this guide, **`HA_IP` means your Home Assistant's local IPv4 address** and **`PS5_IP` means your PS5's local IPv4 address**. Replace these placeholders with your own addresses wherever shown.
 
 ### 1. Find and reserve your addresses
 
@@ -120,6 +131,17 @@ Repeat after a full PS5 shutdown: app icons can remain while payloads need reloa
 - **Payload rollback:** select **Roll back** to restore its previous file. Reboot the PS5 and run the launch sequence before using the restored payload.
 - **App update:** stop HA Relapse, replace `addons/relapse_local`, refresh the store, then **Update / Rebuild** and start. Keep your port settings. **Do not uninstall**: same-app updates preserve your files and selections.
 
+### 8. Capture PS5 logs
+
+1. Upload a compatible **klogsrv / klog ELF** to Additional payloads and load it on the PS5. You can include it in Restore.
+2. In the HA Relapse upload interface, open **Klog**. Enter `PS5_IP`, leave port **3232** unless your server uses another port, then select **Connect**. The IP and port are saved for next time, including after app restarts.
+3. Live output appears and records on HA. Scroll up to pause automatic scrolling; return to the bottom to resume. Highlighting text holds the display for copying while recording continues; clear the selection to catch up. **Stop** closes HA's connection and finishes the recording; it does not unload the PS5 payload.
+4. Under **Recordings**, select **View**, **Save to device** or **Delete**. Save downloads to the phone/PC using the browser. Delete removes the recording from HA; stop an active recording first.
+
+Closing the page or changing tabs does not stop capture. Previous recordings survive app updates/restarts, but capture must be connected again after a restart or PS5 disconnection. No internet access or extra HA port mapping is needed. Logs only contain what the klog server sends; earlier console output may be unavailable.
+
+Limits: **64 MiB per recording, 512 MiB total, 200 recordings**. Capture stops at a limit and keeps the data; it never silently deletes older recordings. The viewer keeps recent text; **Save to device** downloads the full recording as it stood when the download began. For a finished log, press Stop first. Logs can contain private information—check before sharing.
+
 ## How it works
 
 ### Local DNS and HTTP
@@ -152,6 +174,14 @@ Per-console-IP history in `/data/sessions.json` guards against repeat sends in t
 
 Rollback changes the file available for a future load. It cannot undo a running payload or recover a frozen console.
 
+### Klog capture
+
+The HA app opens one receive-only TCP connection to the PS5's klog server, normally on port **3232**. The browser reads small chunks through authenticated HA ingress; it never connects to the PS5 directly. Recording files and connection preferences live in persistent `/data/klog`, separately from payloads, and are included when the app's data is backed up. No klog ELF is bundled. [klogsrv](https://github.com/ps5-payload-dev/klogsrv)
+
+Connection failures keep any received bytes. An app restart marks unfinished recordings **interrupted** and leaves them available. **Connect** always starts a new recording. **Stop** ends the HA reader only; starting/stopping the PS5 klog payload remains your responsibility.
+
+Pressing **Connect** saves the validated IP and port on HA, even if the connection attempt fails. Reopening Klog restores those values; it does not reconnect automatically. The viewer pauses display updates while text is highlighted, while HA continues recording and the browser buffers incoming output.
+
 ### Address changes
 
 A DHCP reservation ties an address to one network adapter's MAC. Switching between Wi-Fi and Ethernet requires updating the reservation and PS5 firewall match for the new adapter. If HA's address changes, update `server_ip`, restart HA Relapse, and update the PS5's primary DNS and your saved URLs.
@@ -164,12 +194,14 @@ If your router has no reservation feature, a manually configured static address 
 
 - **App missing from the store:** check `addons/relapse_local/config.yaml`, reload the store, then refresh the page.
 - **App will not start:** check its log for an IP setting or port conflict. Ports 53, 80 and 443 must be available for the mappings above.
-- **Check the running version:** open `http://HA_IP/health`—use `http://HA_IP:8088/health` if keeping the default HTTP mapping. This guide covers **0.4.8**. `dns_mode` is `offline` or `nanodns`.
+- **Check the running version:** open `http://HA_IP/health`—use `http://HA_IP:8088/health` if keeping the default HTTP mapping. This guide covers **0.4.11**. `dns_mode` is `offline` or `nanodns`.
 - **nanoDNS has no internet:** check `/health` shows `dns_mode: nanodns` and your `PS5_IP`. Confirm you uploaded the PS5 ELF and started it after updating the INI. Its log at `/data/nanodns/nanodns.log` should show `listening on PS5_IP:53`. Allow IPv4 WAN access and HA → PS5 UDP 53. If HA logs a DNS loop, correct nanoDNS's upstream and restart nanoDNS and HA Relapse.
 - **Restore unavailable:** open **Payloads** on the PS5 and confirm primary startup; select at least one additional payload in HA. Entries already attempted in this session are skipped.
+- **Klog cannot connect:** start the PS5's klog payload, check the saved IP and port, and allow HA to reach that TCP port on the LAN. No router port forwarding is needed. After a disconnection or app restart, select **Connect** again.
 
 ## Credits
 
 - **Relapse exploit:** [Sonic_Iso / soniciso1](https://github.com/soniciso1/relapse), Jordy, ntfargo, ufm42 and Dr. Yenyen, with the researchers and contributors credited in [Relapse-Exploit](https://github.com/ntfargo/Relapse-Exploit). HA Relapse packages their exploit work with a local host and payload interface.
 - **Offline HTTP and connectivity approach:** [owendswang's PS5 WebKit Autoloader for ESP32](https://github.com/owendswang/ps5-webkit-autoloader-esp32). Its [local connectivity replies and HTTPS-to-HTTP handoff](https://github.com/owendswang/ps5-webkit-autoloader-esp32/blob/da9aaf0931b3fd9d1fd66c3910ec1cc7414482ce/esp32-arduino.ino) informed the fix. This reference is an ESP32 host, rather than an HA add-on.
 - **Optional DNS payload and example rules:** [drakmor/nanoDNS](https://github.com/drakmor/nanoDNS). nanoDNS is uploaded separately and is not bundled.
+- **Optional log server:** [ps5-payload-dev/klogsrv](https://github.com/ps5-payload-dev/klogsrv). Upload a compatible klog payload separately to use the Klog tab.

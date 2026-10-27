@@ -1,9 +1,9 @@
-HA Relapse 0.4.8 is upload-first.
+HA Relapse 0.4.11 is upload-first.
 
 Build: python3 build_bundle.py
 Audit: python3 audit_bundle.py
 
-The build writes dist/relapse-local-ha-0.4.8.zip and dist/SHA256SUMS.txt.
+The build writes dist/relapse-local-ha-0.4.11.zip and dist/SHA256SUMS.txt.
 The ZIP includes README.md and the relapse_local app folder.
 Follow README.md to install it.
 Upload payloads in Home Assistant -> HA Relapse -> Open web UI.
